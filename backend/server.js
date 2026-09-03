@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
 const Job = require("./models/Job");
-const executeCpp = require("./controllers/executeCpp");
+const compileQueue = require("./queues/compileQueue");
 
 const app = express();
 
@@ -34,57 +34,98 @@ app.use(express.json());
 
 app.post("/jobs", async (req, res) => {
     try {
-        const { language, code, input } = req.body;
+        const { language, code, input = "" } = req.body;
 
-        const job = await Job.create({
+        if (!language || !code) {
+            return res.status(400).json({
+                error: "Language and code are required"
+            });
+        }
+
+        // Create job in MongoDB
+        const dbJob = await Job.create({
             language,
             code,
-            input
+            input,
+            status: "pending"
         });
 
-        const jobId = job._id.toString();
+        const jobId = dbJob._id.toString();
 
+        // Create temp directory
         const tempPath = path.join(process.cwd(), "temp");
-        const sourcePath = path.join(tempPath, `${jobId}.cpp`);
-        const inputPath = path.join(tempPath, `${jobId}.txt`);
-
         fs.mkdirSync(tempPath, { recursive: true });
 
-        fs.writeFileSync(sourcePath, code);
+        // Create source file
+        const filePath = path.join(
+            tempPath,
+            `${jobId}.cpp`
+        );
+
+        fs.writeFileSync(filePath, code);
+
+        // Create input file only if input exists
+        let inputFilePath = "";
 
         if (input) {
-            fs.writeFileSync(inputPath, input);
-        }
-
-        try {
-            const output = await executeCpp(
-                sourcePath,
-                input ? inputPath : null
+            inputFilePath = path.join(
+                tempPath,
+                `${jobId}.txt`
             );
 
-            job.status = "success";
-            job.output = output;
-            await job.save();
+            fs.writeFileSync(inputFilePath, input);
+        }
 
-            res.status(200).json({
-                jobId,
-                status: "success",
-                output
-            });
-        } catch (error) {
-            job.status = "error";
-            job.error = error.stderr || error.error || "Execution failed";
-            await job.save();
+        // Save file paths in MongoDB
+        dbJob.filePath = filePath;
+        dbJob.inputFilePath = inputFilePath;
 
-            res.status(200).json({
-                jobId,
-                status: "error",
-                error: job.error
+        await dbJob.save();
+
+        // Add job to BullMQ
+        await compileQueue.add("compile", {
+            jobId
+        });
+
+        console.log("Job added to queue:", jobId);
+
+        // Return immediately
+        return res.status(202).json({
+            jobId,
+            status: "pending"
+        });
+
+    } catch (error) {
+        console.error("Failed to create job:", error);
+
+        return res.status(500).json({
+            error: "Failed to create job"
+        });
+    }
+});
+
+app.get("/status/:id", async (req, res) => {
+    try {
+        const job = await Job.findById(req.params.id);
+
+        if (!job) {
+            return res.status(404).json({
+                error: "Job not found"
             });
         }
+
+        return res.status(200).json({
+            jobId: job._id,
+            status: job.status,
+            output: job.output,
+            error: job.error
+        });
+
     } catch (error) {
-        res.status(500).json({
-            error: error.message
+        console.error("Failed to get job status:", error);
+
+        return res.status(500).json({
+            error: "Failed to get job status"
         });
     }
 });

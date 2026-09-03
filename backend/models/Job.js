@@ -29,6 +29,24 @@ const jobSchema = new mongoose.Schema({
     error: {
         type: String,
         default: ""
+    },
+
+    filePath: {
+        type: String,
+        default: ""
+    },
+
+    inputFilePath: {
+        type: String,
+        default: ""
+    },
+
+    startedAt: {
+        type: Date
+    },
+
+    completedAt: {
+        type: Date
     }
 });
 
