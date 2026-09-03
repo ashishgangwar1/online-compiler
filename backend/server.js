@@ -22,3 +22,27 @@ mongoose
 app.get("/", (req, res) => {
     res.send("Online Compiler Backend");
 });
+
+const Job = require("./models/Job");
+
+app.use(express.json());
+
+app.post("/jobs", async (req, res) => {
+    try {
+        const { language, code, input } = req.body;
+
+        const job = await Job.create({
+            language,
+            code,
+            input
+        });
+
+        res.status(201).json({
+            jobId: job._id
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: error.message
+        });
+    }
+});
