@@ -5,8 +5,10 @@ const path = require("path");
 require("dotenv").config();
 const Job = require("./models/Job");
 const compileQueue = require("./queues/compileQueue");
+const cors = require("cors");
 
 const app = express();
+app.use(cors());
 
 const PORT = 5000;
 
