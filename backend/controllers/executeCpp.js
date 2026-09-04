@@ -59,10 +59,11 @@ const executeCpp = (filePath, inputFilePath) => {
             }
 
             if (code !== 0) {
+                const sanitizedError = sanitizeCompilerError(compileError,filePath);
                 return reject({
                     type: "compile_error",
                     error: "Compilation failed",
-                    stderr: compileError
+                    stderr: sanitizedError
                 });
             }
 
