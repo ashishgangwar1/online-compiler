@@ -98,7 +98,6 @@ const worker = new Worker(
 
         }finally {
 
-            deleteFile(dbJob.filePath);
             deleteFile(dbJob.inputFilePath);
         }
     },

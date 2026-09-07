@@ -1,6 +1,7 @@
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const killProcessTree = require("../utils/killProcess");
 
 const outputPath = path.join(process.cwd(), "temp", "outputs");
 
@@ -8,6 +9,26 @@ fs.mkdirSync(outputPath, { recursive: true });
 
 const COMPILE_TIMEOUT = 5000;
 const EXECUTION_TIMEOUT = 3000;
+
+function deleteFile(filePath) {
+    if (!filePath) return;
+
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    } catch (error) {
+        console.error("Could not delete file:", filePath);
+    }
+}
+
+function sanitizeCompilerError(error, filePath) {
+    if (!error) return "";
+
+    return error
+        .replaceAll(filePath, "source.cpp")
+        .replaceAll(filePath.replace(/\\/g, "/"), "source.cpp");
+}
 
 const executeCpp = (filePath, inputFilePath) => {
     const jobId = path.basename(filePath).split(".")[0];
@@ -30,7 +51,7 @@ const executeCpp = (filePath, inputFilePath) => {
 
         const compileTimer = setTimeout(() => {
             compileTimedOut = true;
-            compile.kill("SIGKILL");
+            killProcessTree(compile.pid);
         }, COMPILE_TIMEOUT);
 
         compile.stderr.on("data", (data) => {
@@ -49,6 +70,8 @@ const executeCpp = (filePath, inputFilePath) => {
 
         compile.on("close", (code) => {
             clearTimeout(compileTimer);
+
+            deleteFile(filePath);
 
             if (compileTimedOut) {
                 return reject({
@@ -82,14 +105,14 @@ const executeCpp = (filePath, inputFilePath) => {
 
             const executionTimer = setTimeout(() => {
                 executionTimedOut = true;
-                run.kill("SIGKILL");
+                killProcessTree(run.pid);
             }, EXECUTION_TIMEOUT);
 
             if (inputFilePath) {
                 const inputStream = fs.createReadStream(inputFilePath);
 
                 inputStream.on("error", (error) => {
-                    run.kill("SIGKILL");
+                    killProcessTree(run.pid);
                     clearTimeout(executionTimer);
 
                     reject({
@@ -124,6 +147,7 @@ const executeCpp = (filePath, inputFilePath) => {
 
             run.on("close", (code) => {
                 clearTimeout(executionTimer);
+                deleteFile(outputFilePath);
 
                 if (executionTimedOut) {
                     return reject({
