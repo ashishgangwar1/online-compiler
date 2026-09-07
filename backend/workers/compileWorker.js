@@ -44,13 +44,14 @@ const worker = new Worker(
 
         console.log("Processing job:", jobId);
 
-        const dbJob = await Job.findById(jobId);
-
-        if (!dbJob) {
-            throw new Error("Job not found");
-        }
-
+        let dbJob;
+        
         try {
+            dbJob = await Job.findById(jobId);
+            if (!dbJob) {
+                throw new Error("Job not found");
+            }
+
             dbJob.status = "running";
             dbJob.startedAt = new Date();
             await dbJob.save();
@@ -76,29 +77,40 @@ const worker = new Worker(
 
         }catch (error) {
 
-            if (error.type === "timeout") {
-                dbJob.status = "timeout";
-            } else {
-                dbJob.status = "error";
+            console.error("Job execution failed:", error);
+
+            if (dbJob) {
+                try {
+                    if (error.type === "timeout") {
+                        dbJob.status = "timeout";
+                    } else {
+                        dbJob.status = "error";
+                    }
+
+                    dbJob.error =
+                        error.stderr ||
+                        error.error ||
+                        error.message ||
+                        "Execution failed";
+
+                    dbJob.completedAt = new Date();
+
+                    await dbJob.save();
+
+                } catch (dbError) {
+                    console.error(
+                        "Failed to update job status:",
+                        dbError
+                    );
+                }
             }
-
-            dbJob.error =
-                error.stderr ||
-                error.error ||
-                error.message ||
-                "Execution failed";
-
-            dbJob.completedAt = new Date();
-
-            await dbJob.save();
 
             console.log("Job failed:", jobId);
 
             throw error;
-
         }finally {
 
-            deleteFile(dbJob.inputFilePath);
+            if (dbJob) deleteFile(dbJob.inputFilePath);
         }
     },
 
