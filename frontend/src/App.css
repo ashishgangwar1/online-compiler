@@ -175,6 +175,9 @@ body {
     padding: 5px 10px;
     border-radius: 20px;
     background: #e5e7eb;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
 }
 
 .status.success {
@@ -212,4 +215,29 @@ body {
     .bottom-section {
         grid-template-columns: 1fr;
     }
+}
+.status-spinner {
+    width: 10px;
+    height: 10px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: status-spin 0.8s linear infinite;
+}
+
+@keyframes status-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.panel-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.shortcut-hint {
+    font-size: 12px;
+    opacity: 0.6;
 }

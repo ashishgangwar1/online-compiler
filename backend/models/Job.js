@@ -18,6 +18,13 @@ const jobSchema = new mongoose.Schema({
 
     status: {
         type: String,
+        enum: [
+            "pending",
+            "running",
+            "success",
+            "error",
+            "timeout"
+        ],
         default: "pending"
     },
 
@@ -48,6 +55,9 @@ const jobSchema = new mongoose.Schema({
     completedAt: {
         type: Date
     }
+},
+{
+    timestamps: true
 });
 
 module.exports = mongoose.model("Job", jobSchema);

@@ -1,6 +1,5 @@
-import { useState } from "react";
 import Editor from "@monaco-editor/react";
-
+import { useEffect, useState } from "react";
 import "./App.css";
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -28,7 +27,7 @@ function App() {
 
     const clearOutput = () => {
         setOutput("");
-        setStatus("Ready");
+        if (!isRunning) setStatus("Ready");
     };
 
     const [input, setInput] = useState("");
@@ -131,6 +130,24 @@ function App() {
         }
     };
 
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.ctrlKey && event.key === "Enter") {
+                event.preventDefault();
+
+                if (!isRunning) {
+                    runCode();
+                }
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [isRunning, code, input]);
+
     return (
         <div className="app">
             <header className="header">
@@ -150,7 +167,10 @@ function App() {
             <main className="compiler">
                 <section className="panel">
                     <div className="panel-header">
-                        <span>Code</span>
+                        <div className="panel-title">
+                            <span>Code</span>
+                            <span className="shortcut-hint">Ctrl + Enter to run</span>
+                        </div>
 
                         <div className="code-actions">
                             <button
@@ -166,7 +186,7 @@ function App() {
                                 onClick={runCode}
                                 disabled={isRunning}
                             >
-                                {isRunning ? "Running..." : "▶ Run Code"}
+                                {isRunning ? status : "▶ Run Code"}
                             </button>
                         </div>
                     </div>
@@ -181,6 +201,10 @@ function App() {
                             fontSize: 14,
                             minimap: { enabled: false },
                             automaticLayout: true,
+                            wordWrap: "off",
+                            scrollBeyondLastLine: false,
+                            tabSize: 4,
+                            insertSpaces: true,
                             padding: {
                                 top: 16
                             }
@@ -200,6 +224,7 @@ function App() {
                             onChange={(e) => setInput(e.target.value)}
                             placeholder="Enter program input..."
                             spellCheck="false"
+                            disabled={isRunning}
                         />
                     </div>
 
@@ -209,13 +234,14 @@ function App() {
 
                             <div className="output-actions">
                                 <span className={`status ${status.toLowerCase()}`}>
+                                    {isRunning && <span className="status-spinner"></span>}
                                     {status}
                                 </span>
 
                                 <button
                                     className="secondary-button"
                                     onClick={clearOutput}
-                                    disabled={!output}
+                                    disabled={!output || isRunning}
                                 >
                                     Clear
                                 </button>
