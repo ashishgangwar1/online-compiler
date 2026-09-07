@@ -49,24 +49,29 @@ app.get("/", (req, res) => {
 // -------------------------
 
 app.post("/jobs", async (req, res) => {
+    let dbJob = null;
+    let filePath = "";
+    let inputFilePath = "";
+
     try {
         const { language, code, input = "" } = req.body;
 
-        // Validate required fields
+        // -------------------------
+        // Validate request
+        // -------------------------
+
         if (!language || !code) {
             return res.status(400).json({
                 error: "Language and code are required"
             });
         }
 
-        // Validate language
         if (language !== "cpp") {
             return res.status(400).json({
                 error: "Unsupported language"
             });
         }
 
-        // Validate data types
         if (typeof code !== "string") {
             return res.status(400).json({
                 error: "Code must be a string"
@@ -83,8 +88,8 @@ app.post("/jobs", async (req, res) => {
         // Request Size Limits
         // -------------------------
 
-        const MAX_CODE_SIZE = 50 * 1024;   // 50 KB
-        const MAX_INPUT_SIZE = 10 * 1024;  // 10 KB
+        const MAX_CODE_SIZE = 50 * 1024;
+        const MAX_INPUT_SIZE = 10 * 1024;
 
         if (Buffer.byteLength(code, "utf8") > MAX_CODE_SIZE) {
             return res.status(413).json({
@@ -102,7 +107,7 @@ app.post("/jobs", async (req, res) => {
         // Create Job in MongoDB
         // -------------------------
 
-        const dbJob = await Job.create({
+        dbJob = await Job.create({
             language,
             code,
             input,
@@ -128,7 +133,7 @@ app.post("/jobs", async (req, res) => {
         // Create Source File
         // -------------------------
 
-        const filePath = path.join(
+        filePath = path.join(
             tempPath,
             `${jobId}.cpp`
         );
@@ -138,8 +143,6 @@ app.post("/jobs", async (req, res) => {
         // -------------------------
         // Create Input File
         // -------------------------
-
-        let inputFilePath = "";
 
         if (input) {
             inputFilePath = path.join(
@@ -185,17 +188,67 @@ app.post("/jobs", async (req, res) => {
         });
 
     } catch (error) {
+
         console.error(
             "Failed to create job:",
             error
         );
+
+        // -------------------------
+        // Cleanup Temporary Files
+        // -------------------------
+
+        if (filePath) {
+            try {
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            } catch (cleanupError) {
+                console.error(
+                    "Failed to delete source file:",
+                    cleanupError
+                );
+            }
+        }
+
+        if (inputFilePath) {
+            try {
+                if (fs.existsSync(inputFilePath)) {
+                    fs.unlinkSync(inputFilePath);
+                }
+            } catch (cleanupError) {
+                console.error(
+                    "Failed to delete input file:",
+                    cleanupError
+                );
+            }
+        }
+
+        // -------------------------
+        // Update Job Status
+        // -------------------------
+
+        if (dbJob) {
+            try {
+                dbJob.status = "error";
+                dbJob.error = "Failed to queue compilation job";
+                dbJob.completedAt = new Date();
+
+                await dbJob.save();
+
+            } catch (dbError) {
+                console.error(
+                    "Failed to update job status:",
+                    dbError
+                );
+            }
+        }
 
         return res.status(500).json({
             error: "Failed to create job"
         });
     }
 });
-
 // -------------------------
 // Get Job Status
 // -------------------------
